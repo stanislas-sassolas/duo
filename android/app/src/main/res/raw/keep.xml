@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Empêche le build release de supprimer l'icône de notification, référencée
+     uniquement par son nom depuis Dart (flutter_local_notifications). -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_duo,@raw/receive_sparkle" />

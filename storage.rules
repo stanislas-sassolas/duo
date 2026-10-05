@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Storage Duo — vignettes optionnelles des dessins, rangées par couple :
+//   thumbnails/{coupleId}/{drawingId}.png
+// L'accès est réservé aux membres du couple (vérifié via Firestore).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isCoupleMember(coupleId) {
+      return request.auth != null
+        && request.auth.uid in
+           firestore.get(/databases/(default)/documents/couples/$(coupleId)).data.members;
+    }
+
+    match /thumbnails/{coupleId}/{fileName} {
+      allow read: if isCoupleMember(coupleId);
+      // Limite : images de moins de 2 Mo.
+      allow write: if isCoupleMember(coupleId)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

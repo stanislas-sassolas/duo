@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="duo_widget_description">Le dernier dessin reçu</string>
+    <string name="duo_widget_empty">🌻\nEn attente d\'un dessin</string>
+    <string name="duo_widget_image">Dernier dessin reçu</string>
+</resources>

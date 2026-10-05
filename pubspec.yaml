@@ -1,0 +1,82 @@
+name: duo_draw
+description: "Un petit espace privé pour deux — dessine et envoie à la personne que tu aimes."
+publish_to: "none"
+version: 1.4.0+10
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^14.2.0
+
+  # Firebase
+  firebase_core: ^3.3.0
+  firebase_auth: ^5.1.4
+  cloud_firestore: ^5.2.1
+  firebase_storage: ^12.1.3
+  firebase_messaging: ^15.0.4
+
+  # Local persistence (offline outbox + settings)
+  shared_preferences: ^2.3.2
+
+  # Connectivity (offline detection)
+  connectivity_plus: ^6.0.5
+
+  # Local notifications (foreground display + sound)
+  flutter_local_notifications: ^17.2.2
+
+  # Utils
+  uuid: ^4.4.2
+  intl: ^0.20.2
+  collection: ^1.18.0
+  workmanager: ^0.10.10
+  home_widget: ^0.10.0
+  path_provider: ^2.1.6
+  audioplayers: ^6.8.1
+  google_sign_in: ^7.2.0
+  gal: ^2.3.3
+  image_picker: ^1.2.3
+  file_picker: ^13.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  # Sons originaux (générés par tools/generate_sounds.py)
+  assets:
+    - assets/sounds/
+    - assets/backgrounds/
+    - assets/sketches/
+
+  # Polices intégrées (licence OFL, voir assets/fonts/OFL-*.txt)
+  fonts:
+    - family: Fraunces   # prénoms, titres
+      fonts:
+        - asset: assets/fonts/Fraunces.ttf
+    - family: Caveat     # écriture manuscrite des petits mots
+      fonts:
+        - asset: assets/fonts/Caveat.ttf
+
+# Icône de l'application (régénérer : dart run flutter_launcher_icons)
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#FBE3E6"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  min_sdk_android: 23

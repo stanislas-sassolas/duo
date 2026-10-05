@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Déclaration du widget d'écran d'accueil Duo. Mis à jour par l'app
+     (pas de rafraîchissement périodique du système : updatePeriodMillis=0). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/duo_widget_description"
+    android:initialLayout="@layout/duo_widget"
+    android:previewLayout="@layout/duo_widget"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="80dp"
+    android:minResizeHeight="100dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

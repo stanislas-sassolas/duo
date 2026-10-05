@@ -1,0 +1,215 @@
+rules_version = '2';
+
+// Security Rules Duo — un utilisateur ne peut lire/écrire que ce qui appartient
+// à SON couple. Aucune confiance n'est accordée au client.
+//
+// Points clés :
+// - Aucune collection n'est listable par un inconnu : on ne peut lire un
+//   couple en attente ou une invitation qu'en connaissant son identifiant
+//   exact, c'est-à-dire en connaissant le code d'invitation.
+// - Rejoindre un couple exige une invitation active et non expirée.
+// - Les champs d'un dessin sont validés à la création et figés ensuite.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function couplePath(coupleId) {
+      return /databases/$(database)/documents/couples/$(coupleId);
+    }
+
+    function invitePath(code) {
+      return /databases/$(database)/documents/invites/$(code);
+    }
+
+    // Membres d'un couple donné (le couple doit exister).
+    function coupleMembers(coupleId) {
+      return get(couplePath(coupleId)).data.members;
+    }
+
+    function isCoupleMember(coupleId) {
+      return isSignedIn()
+        && exists(couplePath(coupleId))
+        && request.auth.uid in coupleMembers(coupleId);
+    }
+
+    // L'appelant n'appartient à aucun couple existant (ou son ancien couple
+    // a été supprimé par l'autre partenaire).
+    function isFreeToPair() {
+      let me = get(userPath(request.auth.uid)).data;
+      return !('coupleId' in me)
+        || me.coupleId == null
+        || !exists(couplePath(me.coupleId));
+    }
+
+    // --- Profils utilisateurs ---
+    match /users/{userId} {
+      // Lecture : son propre profil, ou celui d'un membre de son couple.
+      function sharesCouple(otherUid) {
+        let me = get(userPath(request.auth.uid)).data;
+        return 'coupleId' in me
+          && me.coupleId != null
+          && exists(couplePath(me.coupleId))
+          && request.auth.uid in coupleMembers(me.coupleId)
+          && otherUid in coupleMembers(me.coupleId);
+      }
+      allow get: if isSignedIn()
+        && (request.auth.uid == userId || sharesCouple(userId));
+      allow list: if false;
+
+      // Écriture : uniquement son propre profil.
+      allow create, update, delete: if isSignedIn() && request.auth.uid == userId;
+
+      // Données strictement personnelles (ex : ses petits mots) : invisibles
+      // même pour le partenaire.
+      match /private/{docId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // --- Couples ---
+    match /couples/{coupleId} {
+      // Lecture : membres, ou couple encore en attente (nécessaire pour
+      // rejoindre ; l'id n'est connu que via le code d'invitation).
+      // Un couple inexistant peut être « lu » (réponse vide) : l'app écoute
+      // parfois son couple une fraction de seconde avant qu'il soit enregistré,
+      // et un ex-partenaire doit voir que le couple a été supprimé.
+      allow get: if isSignedIn()
+        && (resource == null
+            || request.auth.uid in resource.data.members
+            || resource.data.userB == null);
+      allow list: if false;
+
+      // Création : par userA, seul membre initial, sans partenaire.
+      allow create: if isSignedIn()
+        && request.resource.data.userA == request.auth.uid
+        && request.resource.data.userB == null
+        && request.resource.data.members == [request.auth.uid]
+        && request.resource.data.inviteCode is string;
+
+      // Rejoindre : l'appelant devient userB d'un couple en attente, grâce à
+      // une invitation active et non expirée.
+      function hasValidInvite() {
+        let invite = get(invitePath(resource.data.inviteCode)).data;
+        return invite.coupleId == coupleId
+          && invite.active == true
+          && (!('expiresAt' in invite) || invite.expiresAt > request.time);
+      }
+
+      function isValidJoin() {
+        return resource.data.userB == null
+          && request.auth.uid != resource.data.userA
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['userB', 'members'])
+          && request.resource.data.userB == request.auth.uid
+          && request.resource.data.members == [resource.data.userA, request.auth.uid]
+          && hasValidInvite()
+          && isFreeToPair();
+      }
+
+      // Mise à jour par un membre : seulement l'horodatage du dernier dessin.
+      function isMemberMetaUpdate() {
+        return request.auth.uid in resource.data.members
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['lastDrawingAt']);
+      }
+
+      allow update: if isSignedIn() && (isValidJoin() || isMemberMetaUpdate());
+
+      // Suppression (dissociation) : réservée aux membres.
+      allow delete: if isSignedIn() && request.auth.uid in resource.data.members;
+
+      // --- Stickers importés, partagés par le couple ---
+      // Image PNG en base64 (< 300 Ko). « Retirer » un sticker le masque
+      // seulement (les anciens dessins l'utilisent) ; la suppression sert à
+      // la dissociation, qui efface tout.
+      match /stickers/{stickerId} {
+        allow read: if isCoupleMember(coupleId);
+        allow create: if isCoupleMember(coupleId)
+          && request.resource.data.keys().hasOnly(
+               ['data', 'createdBy', 'createdAt', 'hidden'])
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.data is string
+          && request.resource.data.data.size() < 300000;
+        allow update: if isCoupleMember(coupleId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['hidden']);
+        allow delete: if isCoupleMember(coupleId);
+      }
+
+      // --- Dessins du couple ---
+      match /drawings/{drawingId} {
+        allow read: if isCoupleMember(coupleId);
+
+        // Création : l'expéditeur est l'appelant, le destinataire est l'autre
+        // membre ; champs connus uniquement, horodatage serveur imposé.
+        allow create: if isCoupleMember(coupleId)
+          && request.resource.data.keys().hasOnly([
+               'senderId', 'receiverId', 'strokes', 'stickers', 'aspectRatio',
+               'message', 'replyToDrawingId', 'thumbnailUrl', 'createdAt',
+               'viewedAt'])
+          && (!('stickers' in request.resource.data)
+              || (request.resource.data.stickers is list
+                  && request.resource.data.stickers.size() <= 30))
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.receiverId in coupleMembers(coupleId)
+          && request.resource.data.receiverId != request.auth.uid
+          && request.resource.data.strokes is list
+          && request.resource.data.strokes.size() <= 5000
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.get('viewedAt', null) == null
+          && request.resource.data.get('thumbnailUrl', null) == null
+          && (request.resource.data.get('message', null) == null
+              || (request.resource.data.message is string
+                  && request.resource.data.message.size() <= 140))
+          && (request.resource.data.get('replyToDrawingId', null) == null
+              || request.resource.data.replyToDrawingId is string);
+
+        // Mise à jour : seul le destinataire, seulement "vu" et sa réaction
+        // (un emoji court, ou rien).
+        allow update: if isCoupleMember(coupleId)
+          && request.auth.uid == resource.data.receiverId
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['viewedAt', 'reaction'])
+          && (request.resource.data.get('reaction', null) == null
+              || (request.resource.data.reaction is string
+                  && request.resource.data.reaction.size() <= 8));
+
+        // Suppression : tout membre (dissociation / suppression de compte
+        // effacent l'historique commun).
+        allow delete: if isCoupleMember(coupleId);
+      }
+    }
+
+    // --- Annuaire des codes d'invitation ---
+    match /invites/{code} {
+      // Lecture uniquement par code exact (pas de listing possible).
+      allow get: if isSignedIn();
+      allow list: if false;
+
+      // Création : par le créateur du couple visé, active.
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.active == true
+        && getAfter(couplePath(request.resource.data.coupleId)).data.userA
+            == request.auth.uid;
+
+      // Désactivation à l'acceptation : `active` passe à false, rien d'autre.
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['active'])
+        && request.resource.data.active == false;
+
+      // Suppression : le créateur, ou un membre du couple (dissociation).
+      allow delete: if isSignedIn()
+        && (resource.data.createdBy == request.auth.uid
+            || isCoupleMember(resource.data.coupleId));
+    }
+  }
+}

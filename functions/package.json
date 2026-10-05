@@ -1,0 +1,13 @@
+{
+  "name": "duo-functions",
+  "description": "Cloud Functions pour Duo (notifications push)",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.3.0",
+    "firebase-functions": "^5.0.1"
+  },
+  "private": true
+}

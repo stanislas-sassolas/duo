@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Config de sécurité réseau des builds DEBUG (remplace celle de src/main).
+
+  Sur cette machine, Avast intercepte le HTTPS avec son propre certificat racine.
+  Android ne le connaît pas → erreurs "Trust anchor not found" à l'exécution.
+  On ajoute donc le certificat racine Avast (res/raw/avast_ca.crt) aux ancres de
+  confiance, EN PLUS des certificats système standard.
+
+  Les builds release utilisent src/main/res/xml/network_security_config.xml,
+  qui ne fait confiance qu'aux certificats système.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/avast_ca" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,33 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Firebase secrets — regenerate locally with flutterfire configure
+lib/firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+.firebase/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Journaux de crash JVM
+hs_err_pid*.log
+
+# Tests des règles
+rules-tests/node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.partner-sim.json
+tools/sketches_preview.png
